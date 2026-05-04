@@ -45,8 +45,8 @@ public struct R10DeviceInfo: Sendable, Equatable {
     }
 }
 
-/// BLE transport actor for the Garmin Approach R10. Manages
-/// scanning, connection, the post-connect handshake, and the
+/// BLE transport actor for the R10. Manages scanning,
+/// connection, the post-connect handshake, and the
 /// session-byte / COBS / CRC framing used by the device's
 /// proprietary GATT service.
 ///
@@ -219,7 +219,7 @@ public actor R10Connection {
     fileprivate func handleDiscovered(_ p: CBPeripheral, advertisementData: [String: Any], rssi: NSNumber) {
         guard peripheral == nil, let central = central else { return }
         // The R10 doesn't advertise its proprietary service UUID, so we
-        // scan broadly and filter on name. Garmin's advertised name is
+        // scan broadly and filter on name. The advertised name is
         // typically "Approach R10 <serial>" but firmware variants exist —
         // accept anything containing "R10" or "Approach".
         let name = p.name

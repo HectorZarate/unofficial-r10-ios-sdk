@@ -1,12 +1,12 @@
 import Foundation
 
 /// Real-byte capture of a B313 alert carrying a successful no-ball
-/// PRACTICE-mode metrics payload, captured from a Garmin Approach R10
-/// running firmware 4.50 on 2026-05-02.
+/// PRACTICE-mode metrics payload, captured from an R10 running
+/// firmware 4.50 on 2026-05-02.
 ///
 /// Capture context:
-/// - Device: Garmin Approach R10, firmware 4.50
-/// - Connection mode: BLE direct (no Garmin Golf app, no PC bridge)
+/// - Device: R10, firmware 4.50
+/// - Connection mode: BLE direct (no first-party app, no PC bridge)
 /// - Subscription: LAUNCH_MONITOR alert type
 /// - Swing: dry swing, no ball, full motion. Practice-classified by R10.
 /// - Result: club_head_speed = 23.24 m/s = ~52.0 mph
