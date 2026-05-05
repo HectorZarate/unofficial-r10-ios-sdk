@@ -37,7 +37,7 @@ Or via `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/<your-org>/unofficial-r10-ios-sdk", from: "0.1.0"),
+    .package(url: "https://github.com/HectorZarate/unofficial-r10-ios-sdk", from: "0.1.0"),
 ],
 targets: [
     .target(
@@ -93,13 +93,12 @@ await connection.start()
 ### 4. Run the demo app
 
 A runnable iOS demo lives at the repo root
-(`Unofficial R10 iOS SDK.xcodeproj`).
+(`Unofficial R10 iOS SDK.xcodeproj`). The local `R10Kit` package is
+already wired into the demo target, so no manual "Add Package…"
+step is needed.
 
-1. Open the `.xcodeproj` in Xcode.
-2. File → Add Package Dependencies… → Add Local…
-3. Select the repo's root folder (the one containing `Package.swift`).
-4. Add R10Kit to the Unofficial R10 iOS SDK target.
-5. Build and run on a physical iPhone. Bluetooth doesn't work in
+1. Clone the repo and open `Unofficial R10 iOS SDK.xcodeproj` in Xcode.
+2. Build and run on a physical iPhone. Bluetooth doesn't work in
    the simulator.
 
 The demo shows connection state, model / firmware / battery, and a

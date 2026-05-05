@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		DD20E1002FA7F53500808A2D /* R10Kit in Frameworks */ = {isa = PBXBuildFile; productRef = DD20E1012FA7F53500808A2D /* R10Kit */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		DD20E0182FA7F53600808A2D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DD20E1002FA7F53500808A2D /* R10Kit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = "Unofficial R10 iOS SDK";
 			packageProductDependencies = (
+				DD20E1012FA7F53500808A2D /* R10Kit */,
 			);
 			productName = "Unofficial R10 iOS SDK";
 			productReference = DD20E0082FA7F53500808A2D /* Unofficial R10 iOS SDK.app */;
@@ -196,6 +202,9 @@
 			mainGroup = DD20DFFF2FA7F53500808A2D;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
+			packageReferences = (
+				DD20E1022FA7F53500808A2D /* XCLocalSwiftPackageReference "." */,
+			);
 			productRefGroup = DD20E0092FA7F53500808A2D /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -558,6 +567,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		DD20E1022FA7F53500808A2D /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ".";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		DD20E1012FA7F53500808A2D /* R10Kit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = R10Kit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = DD20E0002FA7F53500808A2D /* Project object */;
 }
