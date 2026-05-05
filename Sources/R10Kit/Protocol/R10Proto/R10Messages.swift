@@ -82,6 +82,18 @@ public struct R10ClubMetrics {
     public var clubAnglePath: Float?
     public var attackAngle: Float?
 
+    public init(
+        clubHeadSpeed: Float? = nil,
+        clubAngleFace: Float? = nil,
+        clubAnglePath: Float? = nil,
+        attackAngle: Float? = nil
+    ) {
+        self.clubHeadSpeed = clubHeadSpeed
+        self.clubAngleFace = clubAngleFace
+        self.clubAnglePath = clubAnglePath
+        self.attackAngle = attackAngle
+    }
+
     public static func parse(_ data: Data) throws -> R10ClubMetrics {
         var r = ProtoReader(data); var m = R10ClubMetrics()
         while !r.isAtEnd {
@@ -143,6 +155,24 @@ public struct R10BallMetrics {
     public var spinCalcType: R10SpinCalcType?
     public var golfBallType: R10GolfBallType?
 
+    public init(
+        launchAngle: Float? = nil,
+        launchDirection: Float? = nil,
+        ballSpeed: Float? = nil,
+        spinAxis: Float? = nil,
+        totalSpin: Float? = nil,
+        spinCalcType: R10SpinCalcType? = nil,
+        golfBallType: R10GolfBallType? = nil
+    ) {
+        self.launchAngle = launchAngle
+        self.launchDirection = launchDirection
+        self.ballSpeed = ballSpeed
+        self.spinAxis = spinAxis
+        self.totalSpin = totalSpin
+        self.spinCalcType = spinCalcType
+        self.golfBallType = golfBallType
+    }
+
     public static func parse(_ data: Data) throws -> R10BallMetrics {
         var r = ProtoReader(data); var m = R10BallMetrics()
         while !r.isAtEnd {
@@ -173,6 +203,20 @@ public struct R10SwingMetrics {
     public var followThroughEndTime: UInt32?
     public var endRecordingTime: UInt32?
 
+    public init(
+        backSwingStartTime: UInt32? = nil,
+        downSwingStartTime: UInt32? = nil,
+        impactTime: UInt32? = nil,
+        followThroughEndTime: UInt32? = nil,
+        endRecordingTime: UInt32? = nil
+    ) {
+        self.backSwingStartTime = backSwingStartTime
+        self.downSwingStartTime = downSwingStartTime
+        self.impactTime = impactTime
+        self.followThroughEndTime = followThroughEndTime
+        self.endRecordingTime = endRecordingTime
+    }
+
     public static func parse(_ data: Data) throws -> R10SwingMetrics {
         var r = ProtoReader(data); var m = R10SwingMetrics()
         while !r.isAtEnd {
@@ -196,6 +240,20 @@ public struct R10Metrics {
     public var ballMetrics: R10BallMetrics?
     public var clubMetrics: R10ClubMetrics?
     public var swingMetrics: R10SwingMetrics?
+
+    public init(
+        shotId: UInt32? = nil,
+        shotType: R10ShotType? = nil,
+        ballMetrics: R10BallMetrics? = nil,
+        clubMetrics: R10ClubMetrics? = nil,
+        swingMetrics: R10SwingMetrics? = nil
+    ) {
+        self.shotId = shotId
+        self.shotType = shotType
+        self.ballMetrics = ballMetrics
+        self.clubMetrics = clubMetrics
+        self.swingMetrics = swingMetrics
+    }
 
     public static func parse(_ data: Data) throws -> R10Metrics {
         var r = ProtoReader(data); var m = R10Metrics()
