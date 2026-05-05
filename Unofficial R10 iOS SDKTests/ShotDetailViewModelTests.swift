@@ -150,8 +150,7 @@ struct ShotDetailViewModelTests {
         // raw value but flag it in secondary so devs aren't misled.
         let endRow = vm.row(in: "Swing timing", label: "End recording")
         #expect(endRow?.primary == "2600 ms")
-        #expect(endRow?.secondary?.lowercased().contains("anomalous") == true
-                || endRow?.secondary?.lowercased().contains("monotonic") == true)
+        #expect(endRow?.secondary == "raw — may not be monotonic with impact")
     }
 
     // MARK: - Derived section

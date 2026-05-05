@@ -8,6 +8,9 @@ import R10Kit
 struct ShotDetailView: View {
     let shot: R10ShotEvent
 
+    /// Computed (not @State): shot is immutable for the lifetime
+    /// of this pushed view, so re-running the projection per body
+    /// is microseconds and avoids @State re-init traps.
     private var viewModel: ShotDetailViewModel {
         ShotDetailViewModel(shot: shot)
     }
@@ -47,7 +50,6 @@ private struct DetailRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(row.primary)
                     .monospacedDigit()
-                    .contentTransition(.numericText())
                 if let secondary = row.secondary {
                     Text(secondary)
                         .font(.footnote)

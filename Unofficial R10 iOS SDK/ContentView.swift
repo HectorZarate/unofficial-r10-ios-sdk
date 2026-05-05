@@ -26,7 +26,11 @@ struct ContentView: View {
                             description: Text("Take a swing on the R10 to see metrics here.")
                         )
                     } else {
-                        ForEach(Array(coordinator.recentShots.enumerated()), id: \.offset) { _, shot in
+                        // Identity by impact timestamp, NOT row offset:
+                        // shots prepend to the array, so an offset id
+                        // would re-bind every existing row's destination
+                        // to a different shot mid-tap.
+                        ForEach(coordinator.recentShots, id: \.wallClockImpactAt) { shot in
                             // Closure-based NavigationLink (vs. value-based
                             // navigationDestination(for:)) keeps R10ShotEvent
                             // out of any Hashable conformance burden — the
