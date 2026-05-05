@@ -70,6 +70,22 @@ public actor R10Device {
     /// signal).
     private var rejectionDetector = SwingRejectionDetector()
 
+    /// Pure decider for when to kick the device out of `.error`
+    /// state via a `WakeUp + Tilt` probe. The actor owns the
+    /// in-flight Task; the planner only emits `Decision`s.
+    private var tiltRecoveryPlanner = TiltRecoveryPlanner()
+    private var tiltRecoveryTask: Task<Void, Never>?
+
+    /// Settle delay before the first recovery probe fires, in
+    /// seconds. The user is typically still moving the device
+    /// when `.error` appears; probing too eagerly produces a
+    /// flapping LED. 2s gives them time to set it down.
+    private let tiltRecoveryInitialDelay: TimeInterval = 2.0
+    /// Backoff delay between retries when the device stays in
+    /// `.error` after a probe. Longer than the initial delay so
+    /// we don't spam the firmware.
+    private let tiltRecoveryRetryDelay: TimeInterval = 5.0
+
     public init(connection: R10Connection) {
         self.connection = connection
         let shotsPair = AsyncStream.makeStream(of: R10ShotEvent.self, bufferingPolicy: .bufferingNewest(32))
@@ -134,6 +150,11 @@ public actor R10Device {
             counter = 0
             processedShotIds.removeAll()
             timeBase = nil  // re-establish on next session's first shot
+            // Tilt recovery is session-scoped; tear down any
+            // in-flight probe so a fresh session starts clean.
+            tiltRecoveryTask?.cancel()
+            tiltRecoveryTask = nil
+            tiltRecoveryPlanner = TiltRecoveryPlanner()
         case .scanning, .connecting, .handshaking:
             break
         }
@@ -272,6 +293,17 @@ public actor R10Device {
             }
         }
 
+        // Tilt-error recovery. Without this, picking up the R10
+        // mid-session leaves it stuck in .error (red LED) until
+        // app restart. The planner is pure; the actor owns the
+        // probe Task.
+        if let state = details.state {
+            apply(tiltRecoveryDecision: tiltRecoveryPlanner.observed(state: state))
+        }
+        if let errorCode = details.error?.code {
+            apply(tiltRecoveryDecision: tiltRecoveryPlanner.observed(error: errorCode))
+        }
+
         if let metrics = details.metrics, let shotId = metrics.shotId {
             if processedShotIds.contains(shotId) {
                 R10Log.protocolLog.notice("duplicate shot id \(shotId), ignoring")
@@ -331,6 +363,49 @@ public actor R10Device {
 
         if let tilt = details.calibrationStatus {
             tiltContinuation.yield(tilt)
+        }
+    }
+
+    // MARK: - Tilt recovery
+
+    private func apply(tiltRecoveryDecision decision: TiltRecoveryPlanner.Decision) {
+        switch decision {
+        case .noOp:
+            return
+        case .scheduleRecovery:
+            scheduleTiltRecoveryProbe(after: tiltRecoveryInitialDelay)
+        case .cancelScheduled:
+            R10Log.protocolLog.info("tilt recovery: device left .error — cancelling in-flight probe")
+            tiltRecoveryTask?.cancel()
+            tiltRecoveryTask = nil
+        }
+    }
+
+    private func scheduleTiltRecoveryProbe(after delay: TimeInterval) {
+        // Single in-flight probe — replace any existing scheduled
+        // task. Same reason as `cancelScheduled` above: a fresh
+        // observation supersedes the previous schedule.
+        tiltRecoveryTask?.cancel()
+        tiltRecoveryTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, let self else { return }
+            await self.runTiltRecoveryProbe()
+        }
+    }
+
+    private func runTiltRecoveryProbe() async {
+        R10Log.protocolLog.notice("tilt recovery: probing (WakeUp + Tilt)")
+        // try? both calls — if one fails (e.g. another request was
+        // in flight, or the connection dropped), the planner's next
+        // decision will reschedule based on the device's actual state.
+        _ = try? await sendProtoRequest(R10Request.wakeUp())
+        _ = try? await sendProtoRequest(R10Request.tilt())
+        let next = tiltRecoveryPlanner.recoveryProbeCompleted()
+        switch next {
+        case .scheduleRecovery:
+            scheduleTiltRecoveryProbe(after: tiltRecoveryRetryDelay)
+        case .noOp, .cancelScheduled:
+            R10Log.protocolLog.info("tilt recovery: probe loop complete")
         }
     }
 }
