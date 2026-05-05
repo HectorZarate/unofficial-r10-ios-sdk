@@ -78,20 +78,24 @@ SDK stays unit-pure. `R10Kit` exposes the inputs; you compute the rest.
 | Smash factor | `ballSpeed ÷ clubHeadSpeed` | **Yes** |
 | Face-to-path | `clubAngleFace − clubAnglePath` | **Yes** |
 
-### Session-level streams (independent of any shot)
-
-| Stream | Type | Notes |
-|---|---|---|
-| `R10Connection.phases` | `AsyncStream<R10Phase>` | idle / scanning / connecting / handshaking / ready / disconnected / bluetooth-* |
-| `R10Connection.deviceInfoUpdates` | `AsyncStream<R10DeviceInfo>` | model, firmware, serial |
-| `R10Connection.batteryUpdates` | `AsyncStream<Int>` | percentage (0–100) |
-| `R10Device.errors` | `AsyncStream<R10ErrorInfo>` | overheating / radarSaturation / platformTilted, with severity + tilt readings |
-| `R10Device.tiltCalibrationUpdates` | `AsyncStream<R10CalibrationStatusType>` | inBounds / recalibrationSuggested / recalibrationRequired |
-| `R10Device.rejectedSwings` | `AsyncStream<Date>` | fires when the R10 saw motion that didn't classify as a valid shot |
-
 ## Quickstart
 
-### 1. Add R10Kit to your project
+### 1. Run the demo app
+
+A runnable iOS demo lives at the repo root
+(`Unofficial R10 iOS SDK.xcodeproj`). The local `R10Kit` package is
+already wired into the demo target, so no manual "Add Package…"
+step is needed.
+
+1. Clone the repo and open `Unofficial R10 iOS SDK.xcodeproj` in Xcode.
+2. Build and run on a physical iPhone. Bluetooth doesn't work in
+   the simulator.
+
+The demo shows connection state, model / firmware / battery, and a
+list of recent shots — tap any shot to see every field the SDK
+exposes.
+
+### 2. Add R10Kit to your own project
 
 In Xcode:
 
@@ -115,14 +119,14 @@ targets: [
 ]
 ```
 
-### 2. Add the Bluetooth permission string to Info.plist
+### 3. Add the Bluetooth permission string to Info.plist
 
 ```xml
 <key>NSBluetoothAlwaysUsageDescription</key>
 <string>R10Kit needs Bluetooth to connect to your R10.</string>
 ```
 
-### 3. Connect and read shots
+### 4. Connect and read shots
 
 ```swift
 import R10Kit
@@ -155,68 +159,6 @@ Task {
 await device.start()
 await connection.start()
 ```
-
-### 4. Run the demo app
-
-A runnable iOS demo lives at the repo root
-(`Unofficial R10 iOS SDK.xcodeproj`). The local `R10Kit` package is
-already wired into the demo target, so no manual "Add Package…"
-step is needed.
-
-1. Clone the repo and open `Unofficial R10 iOS SDK.xcodeproj` in Xcode.
-2. Build and run on a physical iPhone. Bluetooth doesn't work in
-   the simulator.
-
-The demo shows connection state, model / firmware / battery, and a
-list of recent shots.
-
-## Public API at a glance
-
-```swift
-public actor R10Connection {
-    public init()
-    public func start()
-    public func shutdown()
-    public func forgetDevice()
-
-    public nonisolated let phases: AsyncStream<R10Phase>
-    public nonisolated let inboundPayloads: AsyncStream<Data>
-    public nonisolated let batteryUpdates: AsyncStream<Int>
-    public nonisolated let deviceInfoUpdates: AsyncStream<R10DeviceInfo>
-    public nonisolated let frameTimestamps: AsyncStream<Date>
-
-    public nonisolated static var hasStoredDevice: Bool { get }
-}
-
-public actor R10Device {
-    public init(connection: R10Connection)
-    public func start()
-    public func notifyPhaseChange(_ phase: R10Phase) async
-    public func stop()
-
-    public nonisolated let shotEvents: AsyncStream<R10ShotEvent>
-    public nonisolated let errors: AsyncStream<R10ErrorInfo>
-    public nonisolated let tiltCalibrationUpdates: AsyncStream<R10CalibrationStatusType>
-    public nonisolated let rejectedSwings: AsyncStream<Date>
-}
-
-public struct R10ShotEvent: Sendable {
-    public let metrics: R10Metrics
-    public let wallClockImpactAt: Date
-}
-
-public struct R10Metrics: Sendable {
-    public var shotId: UInt32?
-    public var shotType: R10ShotType?
-    public var ballMetrics: R10BallMetrics?
-    public var clubMetrics: R10ClubMetrics?
-    public var swingMetrics: R10SwingMetrics?
-}
-```
-
-Every parsed proto field — including the provenance enums
-(`R10SpinCalcType`, `R10GolfBallType`) — is exposed publicly.
-Source: `Sources/R10Kit/Protocol/R10Proto/R10Messages.swift`.
 
 ## Hardware tested
 
