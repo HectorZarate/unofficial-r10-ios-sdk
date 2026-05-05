@@ -9,13 +9,9 @@ Bluetooth Low Energy. Pure Swift, no first-party app required.
 
 ## Screenshots
 
-The bundled demo app shows every field the SDK exposes — tap any shot to drill into its full data:
-
 | Connection + recent shots | Shot detail | Derived metrics + tempo |
 |:---:|:---:|:---:|
 | ![R10Kit demo — connection state, device info, list of recent shots](docs/screenshots/01-shot-list.png) | ![Shot detail — Identity (Shot ID, Practice type, raw epoch) and Club metrics; Ball section absent on a no-ball swing](docs/screenshots/02-shot-detail-identity.png) | ![Shot detail scrolled — full Swing timing with end-recording annotation, Derived backswing/downswing/follow-through/total durations and tempo ratio](docs/screenshots/03-shot-detail-derived.png) |
-
-The middle screenshot is a no-ball practice swing — `Ball` section is absent because the radar has nothing to measure, but `Club` (speed, path, attack angle) and `Swing timing` still populate. That's the SDK's signature feature.
 
 ## Features
 
