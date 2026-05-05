@@ -75,6 +75,12 @@ public actor R10Device {
     /// in-flight Task; the planner only emits `Decision`s.
     private var tiltRecoveryPlanner = TiltRecoveryPlanner()
     private var tiltRecoveryTask: Task<Void, Never>?
+    /// Counts probes within the current `.error` episode. Reset to
+    /// zero when the device clears or the session ends. Used to
+    /// keep retry logging at `.debug` after the initial `.notice` —
+    /// a stuck device can otherwise emit hundreds of notice-level
+    /// lines per hour.
+    private var tiltRecoveryAttemptCount: Int = 0
 
     /// Settle delay before the first recovery probe fires, in
     /// seconds. The user is typically still moving the device
@@ -134,6 +140,17 @@ public actor R10Device {
         primed = false
         processedShotIds.removeAll()
         counter = 0
+        resetTiltRecovery()
+    }
+
+    /// Tear down any in-flight tilt-recovery probe and reset the
+    /// planner. Called from both `stop()` and the .disconnected
+    /// phase handler — both end the session lifecycle.
+    private func resetTiltRecovery() {
+        tiltRecoveryTask?.cancel()
+        tiltRecoveryTask = nil
+        tiltRecoveryPlanner = TiltRecoveryPlanner()
+        tiltRecoveryAttemptCount = 0
     }
 
     // MARK: - Phase handling
@@ -152,9 +169,7 @@ public actor R10Device {
             timeBase = nil  // re-establish on next session's first shot
             // Tilt recovery is session-scoped; tear down any
             // in-flight probe so a fresh session starts clean.
-            tiltRecoveryTask?.cancel()
-            tiltRecoveryTask = nil
-            tiltRecoveryPlanner = TiltRecoveryPlanner()
+            resetTiltRecovery()
         case .scanning, .connecting, .handshaking:
             break
         }
@@ -378,6 +393,7 @@ public actor R10Device {
             R10Log.protocolLog.info("tilt recovery: device left .error — cancelling in-flight probe")
             tiltRecoveryTask?.cancel()
             tiltRecoveryTask = nil
+            tiltRecoveryAttemptCount = 0
         }
     }
 
@@ -394,7 +410,15 @@ public actor R10Device {
     }
 
     private func runTiltRecoveryProbe() async {
-        R10Log.protocolLog.notice("tilt recovery: probing (WakeUp + Tilt)")
+        tiltRecoveryAttemptCount += 1
+        // First probe of the episode is .notice (visible in default
+        // Console.app filtering); retries drop to .debug so a
+        // genuinely stuck device doesn't flood the log stream.
+        if tiltRecoveryAttemptCount == 1 {
+            R10Log.protocolLog.notice("tilt recovery: probing (WakeUp + Tilt)")
+        } else {
+            R10Log.protocolLog.debug("tilt recovery: retry probe #\(self.tiltRecoveryAttemptCount) (WakeUp + Tilt)")
+        }
         // try? both calls — if one fails (e.g. another request was
         // in flight, or the connection dropped), the planner's next
         // decision will reschedule based on the device's actual state.
@@ -405,7 +429,8 @@ public actor R10Device {
         case .scheduleRecovery:
             scheduleTiltRecoveryProbe(after: tiltRecoveryRetryDelay)
         case .noOp, .cancelScheduled:
-            R10Log.protocolLog.info("tilt recovery: probe loop complete")
+            R10Log.protocolLog.info("tilt recovery: probe loop complete after \(self.tiltRecoveryAttemptCount) attempt(s)")
+            tiltRecoveryAttemptCount = 0
         }
     }
 }
