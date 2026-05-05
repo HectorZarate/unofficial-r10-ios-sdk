@@ -27,7 +27,15 @@ struct ContentView: View {
                         )
                     } else {
                         ForEach(Array(coordinator.recentShots.enumerated()), id: \.offset) { _, shot in
-                            ShotRow(shot: shot)
+                            // Closure-based NavigationLink (vs. value-based
+                            // navigationDestination(for:)) keeps R10ShotEvent
+                            // out of any Hashable conformance burden — the
+                            // SDK's value type stays unbothered.
+                            NavigationLink {
+                                ShotDetailView(shot: shot)
+                            } label: {
+                                ShotRow(shot: shot)
+                            }
                         }
                     }
                 }
