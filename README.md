@@ -14,8 +14,8 @@ Bluetooth Low Energy. Pure Swift, no first-party app required.
   ball speed, launch angle/direction, spin rate + axis + provenance,
   attack angle, club face/path, swing-timing milliseconds, shot type
   (practice / normal), tilt-at-impact.
-- No-ball practice swings — the R10 emits practice-mode metrics on a
-  fraction of swings without a ball; this SDK exposes them.
+- No-ball practice swings — the R10 emits metrics on a
+  full swing without a ball; this SDK exposes them.
 - Connection state stream with auto-reconnect to the most recently
   paired R10.
 - AsyncStream-first API. Modern Swift Concurrency, no delegates.
