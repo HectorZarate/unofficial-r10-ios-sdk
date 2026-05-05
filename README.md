@@ -26,8 +26,68 @@ Bluetooth Low Energy. Pure Swift, no first-party app required.
   paired R10.
 - AsyncStream-first API. Modern Swift Concurrency, no delegates.
 - iOS 17+ / watchOS 10+ / macOS 14+. Pure Swift Package.
-- 58 unit tests covering framing, COBS, CRC, proto parsing,
-  time-base conversion, and the swing-rejection detector.
+- 70 unit tests covering framing, COBS, CRC, proto parsing,
+  time-base conversion, the swing-rejection detector, and tilt-error
+  recovery.
+
+## Per-shot data
+
+The R10 only populates `BallMetrics` (and `clubAngleFace`) when its
+radar sees a ball departure. On a practice swing without a ball,
+`Club` (minus face), `Swing timing`, identity, and the SDK's
+swing-derived metrics still populate — every field below tagged
+**No** is available without a ball. That's the practice-mode unlock
+the SDK is built around.
+
+### Raw fields exposed by R10Kit
+
+| Field | Source struct | Unit | Ball required |
+|---|---|---|:---:|
+| `shotId` | `R10Metrics` | `UInt32` | No |
+| `shotType` | `R10Metrics` | `.practice` / `.normal` / `.unknown` | No |
+| `wallClockImpactAt` | `R10ShotEvent` | `Date` (UTC, derived from `R10TimeBase`) | No |
+| `clubHeadSpeed` | `R10ClubMetrics` | m/s | No |
+| `clubAnglePath` | `R10ClubMetrics` | degrees | No |
+| `attackAngle` | `R10ClubMetrics` | degrees | No |
+| `backSwingStartTime` | `R10SwingMetrics` | ms since R10 boot | No |
+| `downSwingStartTime` | `R10SwingMetrics` | ms since R10 boot | No |
+| `impactTime` | `R10SwingMetrics` | ms since R10 boot | No |
+| `followThroughEndTime` | `R10SwingMetrics` | ms since R10 boot | No |
+| `endRecordingTime` | `R10SwingMetrics` | ms since R10 boot (may be < `followThroughEndTime` in some emissions; suspected different reference clock) | No |
+| `clubAngleFace` | `R10ClubMetrics` | degrees | **Yes** |
+| `ballSpeed` | `R10BallMetrics` | m/s | **Yes** |
+| `launchAngle` | `R10BallMetrics` | degrees | **Yes** |
+| `launchDirection` | `R10BallMetrics` | degrees | **Yes** |
+| `totalSpin` | `R10BallMetrics` | rpm | **Yes** |
+| `spinAxis` | `R10BallMetrics` | degrees | **Yes** |
+| `spinCalcType` | `R10BallMetrics` | `.ratio` / `.ballFlight` / `.other` / `.measured` | **Yes** |
+| `golfBallType` | `R10BallMetrics` | `.unknown` / `.conventional` / `.marked` | **Yes** |
+
+### Derived metrics (computed by the demo app's `ShotDetailViewModel`)
+
+These aren't on the SDK type — they live next to consuming code so the
+SDK stays unit-pure. `R10Kit` exposes the inputs; you compute the rest.
+
+| Metric | Formula | Ball required |
+|---|---|:---:|
+| Backswing duration | `downSwingStartTime − backSwingStartTime` | No |
+| Downswing duration | `impactTime − downSwingStartTime` | No |
+| Follow-through duration | `followThroughEndTime − impactTime` | No |
+| Total swing duration | `impactTime − backSwingStartTime` | No |
+| Tempo ratio | backswing ÷ downswing (golf 3:1 convention) | No |
+| Smash factor | `ballSpeed ÷ clubHeadSpeed` | **Yes** |
+| Face-to-path | `clubAngleFace − clubAnglePath` | **Yes** |
+
+### Session-level streams (independent of any shot)
+
+| Stream | Type | Notes |
+|---|---|---|
+| `R10Connection.phases` | `AsyncStream<R10Phase>` | idle / scanning / connecting / handshaking / ready / disconnected / bluetooth-* |
+| `R10Connection.deviceInfoUpdates` | `AsyncStream<R10DeviceInfo>` | model, firmware, serial |
+| `R10Connection.batteryUpdates` | `AsyncStream<Int>` | percentage (0–100) |
+| `R10Device.errors` | `AsyncStream<R10ErrorInfo>` | overheating / radarSaturation / platformTilted, with severity + tilt readings |
+| `R10Device.tiltCalibrationUpdates` | `AsyncStream<R10CalibrationStatusType>` | inBounds / recalibrationSuggested / recalibrationRequired |
+| `R10Device.rejectedSwings` | `AsyncStream<Date>` | fires when the R10 saw motion that didn't classify as a valid shot |
 
 ## Quickstart
 
