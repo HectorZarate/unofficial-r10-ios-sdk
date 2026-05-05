@@ -1,5 +1,6 @@
 import Foundation
 import CoreBluetooth
+import os
 
 /// High-level transport state of the R10 connection. The
 /// `R10Connection` actor publishes these via the `phases` stream;
@@ -226,14 +227,10 @@ public actor R10Connection {
             ?? (advertisementData[CBAdvertisementDataLocalNameKey] as? String)
             ?? ""
         guard nameMatches(name) else {
-            #if DEBUG
-            print("[R10] skipping discovered peripheral name=\(name) rssi=\(rssi)")
-            #endif
+            R10Log.transport.debug("skipping discovered peripheral name=\(name, privacy: .public) rssi=\(rssi)")
             return
         }
-        #if DEBUG
-        print("[R10] matched peripheral name=\(name) rssi=\(rssi) id=\(p.identifier)")
-        #endif
+        R10Log.transport.info("matched peripheral name=\(name, privacy: .public) rssi=\(rssi) id=\(p.identifier.uuidString, privacy: .public)")
         central.stopScan()
         UserDefaults.standard.set(p.identifier.uuidString, forKey: Self.storedUUIDKey)
         peripheral = p
@@ -281,15 +278,11 @@ public actor R10Connection {
         for c in chars {
             switch c.uuid {
             case Self.deviceInterfaceNotifierUUID:
-                #if DEBUG
-                print("[R10] subscribing to notifier (waiting for confirmation before handshake)")
-                #endif
+                R10Log.transport.info("subscribing to notifier (waiting for confirmation before handshake)")
                 notifierChar = c
                 p.setNotifyValue(true, for: c)
             case Self.deviceInterfaceWriterUUID:
-                #if DEBUG
-                print("[R10] writer characteristic ready")
-                #endif
+                R10Log.transport.info("writer characteristic ready")
                 writerChar = c
                 tryStartHandshake()
             case Self.batteryCharUUID:
@@ -304,9 +297,7 @@ public actor R10Connection {
     }
 
     fileprivate func handleNotificationStateUpdate(uuid: CBUUID, isNotifying: Bool, error: Error?) {
-        #if DEBUG
-        print("[R10] notify state \(uuid) → isNotifying=\(isNotifying), err=\(error?.localizedDescription ?? "nil")")
-        #endif
+        R10Log.transport.info("notify state \(uuid.uuidString, privacy: .public) → isNotifying=\(isNotifying), err=\(error?.localizedDescription ?? "nil", privacy: .public)")
         if uuid == Self.deviceInterfaceNotifierUUID {
             notifierSubscribed = isNotifying && error == nil
             if notifierSubscribed {
@@ -316,11 +307,9 @@ public actor R10Connection {
     }
 
     fileprivate func handleWriteCompletion(uuid: CBUUID, error: Error?) {
-        #if DEBUG
         if let error {
-            print("[R10] write to \(uuid) failed: \(error.localizedDescription)")
+            R10Log.transport.error("write to \(uuid.uuidString, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
         }
-        #endif
     }
 
     fileprivate func handleValueUpdate(uuid: CBUUID, value: Data) {
@@ -366,18 +355,14 @@ public actor R10Connection {
            let uuid = UUID(uuidString: stored) {
             let cached = central.retrievePeripherals(withIdentifiers: [uuid])
             if let p = cached.first {
-                #if DEBUG
-                print("[R10] retrieved cached peripheral id=\(uuid)")
-                #endif
+                R10Log.transport.info("retrieved cached peripheral id=\(uuid.uuidString, privacy: .public)")
                 peripheral = p
                 p.delegate = adapter
                 update(phase: .connecting)
                 central.connect(p)
                 return
             } else {
-                #if DEBUG
-                print("[R10] stored UUID \(uuid) not retrievable; falling back to scan")
-                #endif
+                R10Log.transport.info("stored UUID \(uuid.uuidString, privacy: .public) not retrievable; falling back to scan")
             }
         }
         // Scan with no service filter — the R10 advertises only standard
@@ -385,9 +370,7 @@ public actor R10Connection {
         // proprietary device interface service. We filter by name in
         // handleDiscovered.
         update(phase: .scanning)
-        #if DEBUG
-        print("[R10] starting broad scan for R10 / Approach name match")
-        #endif
+        R10Log.transport.info("starting broad scan for R10 / Approach name match")
         central.scanForPeripherals(withServices: nil, options: nil)
     }
 
@@ -397,18 +380,14 @@ public actor R10Connection {
     private func tryStartHandshake() {
         guard phase != .ready, phase != .handshaking else { return }
         guard let writer = writerChar, notifierSubscribed, let p = peripheral else {
-            #if DEBUG
-            print("[R10] tryStartHandshake gated: writer=\(writerChar != nil) subscribed=\(notifierSubscribed)")
-            #endif
+            R10Log.transport.debug("tryStartHandshake gated: writer=\(self.writerChar != nil) subscribed=\(self.notifierSubscribed)")
             return
         }
         update(phase: .handshaking)
         var chunk = Data()
         chunk.append(0)
         chunk.append(Framing.handshakeRequest)
-        #if DEBUG
-        print("[R10] sending handshake (\(chunk.count) bytes)")
-        #endif
+        R10Log.transport.info("sending handshake (\(chunk.count) bytes)")
         p.writeValue(chunk, for: writer, type: .withResponse)
         startHandshakeWatchdog()
     }
@@ -424,9 +403,7 @@ public actor R10Connection {
 
     private func handshakeTimedOut() {
         guard phase == .handshaking else { return }
-        #if DEBUG
-        print("[R10] handshake watchdog fired — forcing disconnect to retry clean")
-        #endif
+        R10Log.transport.error("handshake watchdog fired — forcing disconnect to retry clean")
         if let p = peripheral, let c = central {
             c.cancelPeripheralConnection(p)
         } else {
@@ -441,9 +418,7 @@ public actor R10Connection {
         do {
             outputs = try assembler.feed(chunk)
         } catch {
-            #if DEBUG
-            print("[R10] frame assembly error: \(error)")
-            #endif
+            R10Log.transport.error("frame assembly error: \(String(describing: error), privacy: .public)")
             return
         }
         for output in outputs {
@@ -454,10 +429,8 @@ public actor R10Connection {
             case .handshake(let body):
                 handleHandshakeChunk(body)
             case .payload(let payload):
-                #if DEBUG
                 let opcodeHex = payload.prefix(2).map { String(format: "%02X", $0) }.joined()
-                print("[R10] inbound payload \(opcodeHex), \(payload.count) bytes")
-                #endif
+                R10Log.transport.debug("inbound payload \(opcodeHex, privacy: .public), \(payload.count) bytes")
                 let ack = Framing.ackPayload(for: payload)
                 let encoded = Framing.encodeOuter(ack)
                 let acks = Framing.chunk(encoded, header: sessionByte)
@@ -470,14 +443,10 @@ public actor R10Connection {
     }
 
     private func handleHandshakeChunk(_ body: Data) {
-        #if DEBUG
-        print("[R10] handshake chunk in: \(body.map { String(format: "%02X", $0) }.joined())")
-        #endif
+        R10Log.transport.debug("handshake chunk in: \(body.map { String(format: "%02X", $0) }.joined(), privacy: .public)")
         guard body.count >= 13,
               body.starts(with: Framing.handshakeResponsePrefix) else {
-            #if DEBUG
-            print("[R10] handshake chunk did not match expected prefix")
-            #endif
+            R10Log.transport.error("handshake chunk did not match expected prefix")
             return
         }
         sessionByte = body[body.startIndex + 12]
@@ -488,9 +457,7 @@ public actor R10Connection {
         if let writer = writerChar, let p = peripheral {
             p.writeValue(Data([0x00]), for: writer, type: .withResponse)
         }
-        #if DEBUG
-        print("[R10] handshake complete, sessionByte=\(String(format: "0x%02X", sessionByte))")
-        #endif
+        R10Log.transport.info("handshake complete, sessionByte=\(String(format: "0x%02X", self.sessionByte), privacy: .public)")
         update(phase: .ready)
     }
 

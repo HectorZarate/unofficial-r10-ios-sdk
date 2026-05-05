@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public enum R10DeviceError: Error, Sendable {
     case requestInFlight
@@ -140,50 +141,30 @@ public actor R10Device {
 
     private func runPrimeSequence() async {
         do {
-            #if DEBUG
-            print("[R10] priming: WakeUp")
-            #endif
+            R10Log.protocolLog.info("priming: WakeUp")
             _ = try await sendProtoRequest(R10Request.wakeUp())
-            #if DEBUG
-            print("[R10] priming: AlertSupport (capability fingerprint)")
-            #endif
+            R10Log.protocolLog.info("priming: AlertSupport (capability fingerprint)")
             let supportResp = try await sendProtoRequest(R10Request.alertSupportQuery())
-            #if DEBUG
             if let support = supportResp.event?.supportResponse {
                 let alerts = support.supportedAlerts.map { "\($0)" }.joined(separator: ", ")
-                print("[R10] firmware reports supported alerts: [\(alerts)] version=\(support.versionNumber.map { "\($0)" } ?? "nil")")
+                R10Log.protocolLog.info("firmware reports supported alerts: [\(alerts, privacy: .public)] version=\(support.versionNumber.map { "\($0)" } ?? "nil", privacy: .public)")
             } else {
-                print("[R10] AlertSupport response had no support_response payload")
+                R10Log.protocolLog.notice("AlertSupport response had no support_response payload")
             }
-            #endif
-            #if DEBUG
-            print("[R10] priming: Status")
-            #endif
+            R10Log.protocolLog.info("priming: Status")
             _ = try await sendProtoRequest(R10Request.status())
-            #if DEBUG
-            print("[R10] priming: Tilt")
-            #endif
+            R10Log.protocolLog.info("priming: Tilt")
             _ = try await sendProtoRequest(R10Request.tilt())
-            #if DEBUG
-            print("[R10] priming: ShotConfig (default indoor, tee_range=6ft)")
-            #endif
+            R10Log.protocolLog.info("priming: ShotConfig (default indoor, tee_range=6ft)")
             let configResp = try await sendProtoRequest(R10Request.shotConfig())
-            #if DEBUG
             if let success = configResp.service?.shotConfigResponse?.success {
-                print("[R10] ShotConfig accepted=\(success)")
+                R10Log.protocolLog.info("ShotConfig accepted=\(success)")
             }
-            #endif
-            #if DEBUG
-            print("[R10] priming: Subscribe(activityStart, activityStop, launchMonitor)")
-            #endif
+            R10Log.protocolLog.info("priming: Subscribe(activityStart, activityStop, launchMonitor)")
             _ = try await sendProtoRequest(R10Request.subscribe([.activityStart, .activityStop, .launchMonitor]))
-            #if DEBUG
-            print("[R10] priming complete — listening for shots")
-            #endif
+            R10Log.protocolLog.info("priming complete — listening for shots")
         } catch {
-            #if DEBUG
-            print("[R10] priming failed: \(error)")
-            #endif
+            R10Log.protocolLog.error("priming failed: \(String(describing: error), privacy: .public)")
             // If priming fails (timeout, etc.), the connection layer will
             // tear down on its own and we'll retry on the next .ready.
             primed = false
@@ -219,9 +200,7 @@ public actor R10Device {
 
     private func timeOutIfStillInFlight(counter: UInt32) {
         guard let cont = inFlightProto, inFlightCounter == counter else { return }
-        #if DEBUG
-        print("[R10] proto request #\(counter) timed out")
-        #endif
+        R10Log.protocolLog.error("proto request #\(counter) timed out")
         inFlightProto = nil
         cont.resume(throwing: R10DeviceError.timeout)
     }
@@ -255,9 +234,7 @@ public actor R10Device {
             }
         case R10Opcode.protoRequest:
             // B313 — server-initiated message (alert notification)
-            #if DEBUG
-            print("[R10] B313 raw proto bytes (\(protoBytes.count)): \(protoBytes.map { String(format: "%02X", $0) }.joined())")
-            #endif
+            R10Log.protocolLog.debug("B313 raw proto bytes (\(protoBytes.count)): \(protoBytes.map { String(format: "%02X", $0) }.joined(), privacy: .public)")
             if let parsed {
                 handleAlert(parsed)
             }
@@ -269,14 +246,12 @@ public actor R10Device {
     private func handleAlert(_ wrapper: R10WrapperProto) {
         guard let notification = wrapper.event?.notification else { return }
 
-        #if DEBUG
         let typeStr = notification.type.map { "\($0)" } ?? "nil"
         if let details = notification.details {
-            print("[R10] alert type=\(typeStr) state=\(String(describing: details.state)) metrics=\(details.metrics != nil ? "yes" : "no") err=\(details.error != nil ? "yes" : "no") tilt=\(String(describing: details.calibrationStatus))")
+            R10Log.protocolLog.debug("alert type=\(typeStr, privacy: .public) state=\(String(describing: details.state), privacy: .public) metrics=\(details.metrics != nil ? "yes" : "no", privacy: .public) err=\(details.error != nil ? "yes" : "no", privacy: .public) tilt=\(String(describing: details.calibrationStatus), privacy: .public)")
         } else {
-            print("[R10] alert type=\(typeStr) (no details)")
+            R10Log.protocolLog.debug("alert type=\(typeStr, privacy: .public) (no details)")
         }
-        #endif
 
         guard let details = notification.details else { return }
 
@@ -285,17 +260,13 @@ public actor R10Device {
         // the UI hint stream.
         if let state = details.state {
             if rejectionDetector.observe(.state(state)) {
-                #if DEBUG
-                print("[R10] swing rejected — no metrics for completed cycle")
-                #endif
+                R10Log.protocolLog.info("swing rejected — no metrics for completed cycle")
                 rejectedSwingsContinuation.yield(Date())
             }
         }
 
         if let state = details.state, state == .standby {
-            #if DEBUG
-            print("[R10] device in STANDBY — sending WakeUp")
-            #endif
+            R10Log.protocolLog.notice("device in STANDBY — sending WakeUp")
             Task { [weak self] in
                 _ = try? await self?.sendProtoRequest(R10Request.wakeUp())
             }
@@ -303,31 +274,25 @@ public actor R10Device {
 
         if let metrics = details.metrics, let shotId = metrics.shotId {
             if processedShotIds.contains(shotId) {
-                #if DEBUG
-                print("[R10] duplicate shot id \(shotId), ignoring")
-                #endif
+                R10Log.protocolLog.notice("duplicate shot id \(shotId), ignoring")
                 return
             }
             processedShotIds.insert(shotId)
             // Tell the rejection detector this cycle DID produce metrics
             // before the cycle terminus arrives — prevents a false flag.
             _ = rejectionDetector.observe(.metricsArrived)
-            #if DEBUG
-            let typeStr = metrics.shotType.map { "\($0)" } ?? "nil"
-            let cm = metrics.clubMetrics
-            let sm = metrics.swingMetrics
-            print("[R10] METRICS shot id=\(shotId) type=\(typeStr)")
-            if let cm {
-                print("[R10]   club: speed=\(cm.clubHeadSpeed.map { String(format: "%.2f m/s", $0) } ?? "nil") face=\(cm.clubAngleFace.map { "\($0)" } ?? "nil") path=\(cm.clubAnglePath.map { "\($0)" } ?? "nil") attack=\(cm.attackAngle.map { "\($0)" } ?? "nil")")
+            let metricTypeStr = metrics.shotType.map { "\($0)" } ?? "nil"
+            R10Log.protocolLog.info("METRICS shot id=\(shotId) type=\(metricTypeStr, privacy: .public)")
+            if let cm = metrics.clubMetrics {
+                R10Log.protocolLog.debug("  club: speed=\(cm.clubHeadSpeed.map { String(format: "%.2f m/s", $0) } ?? "nil", privacy: .public) face=\(cm.clubAngleFace.map { "\($0)" } ?? "nil", privacy: .public) path=\(cm.clubAnglePath.map { "\($0)" } ?? "nil", privacy: .public) attack=\(cm.attackAngle.map { "\($0)" } ?? "nil", privacy: .public)")
             } else {
-                print("[R10]   club: <no club_metrics in payload>")
+                R10Log.protocolLog.debug("  club: <no club_metrics in payload>")
             }
-            if let sm {
-                print("[R10]   swing: backStart=\(sm.backSwingStartTime.map { "\($0)" } ?? "nil") downStart=\(sm.downSwingStartTime.map { "\($0)" } ?? "nil") impact=\(sm.impactTime.map { "\($0)" } ?? "nil")")
+            if let sm = metrics.swingMetrics {
+                R10Log.protocolLog.debug("  swing: backStart=\(sm.backSwingStartTime.map { "\($0)" } ?? "nil", privacy: .public) downStart=\(sm.downSwingStartTime.map { "\($0)" } ?? "nil", privacy: .public) impact=\(sm.impactTime.map { "\($0)" } ?? "nil", privacy: .public)")
             } else {
-                print("[R10]   swing: <no swing_metrics in payload>")
+                R10Log.protocolLog.debug("  swing: <no swing_metrics in payload>")
             }
-            #endif
             // Compute wall-clock impact time. Establish R10TimeBase on
             // the first shot of the session if not already set; thereafter
             // every shot uses the same boot epoch so inter-event timing
@@ -351,14 +316,12 @@ public actor R10Device {
                 wallClock = arrivedAt.addingTimeInterval(-2.0)
             }
 
-            #if DEBUG
             if let mps = metrics.clubMetrics?.clubHeadSpeed {
                 let mph = Double(mps) * mpsToMph
-                print("[R10] → emitting shot event \(String(format: "%.1f", mph)) mph at \(wallClock)")
+                R10Log.protocolLog.info("→ emitting shot event \(String(format: "%.1f", mph), privacy: .public) mph at \(wallClock, privacy: .public)")
             } else {
-                print("[R10] → emitting shot event (no club speed) at \(wallClock)")
+                R10Log.protocolLog.info("→ emitting shot event (no club speed) at \(wallClock, privacy: .public)")
             }
-            #endif
             shotEventsContinuation.yield(R10ShotEvent(metrics: metrics, wallClockImpactAt: wallClock))
         }
 
